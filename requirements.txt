@@ -1,0 +1,27 @@
+# ═══════════════════════════════════════════════════════════════════
+# Insurance RAG — Superadmin Back Office
+# ═══════════════════════════════════════════════════════════════════
+
+# Framework
+fastapi==0.109.2
+uvicorn[standard]==0.27.1
+pydantic[email]==2.6.1
+pydantic-settings==2.1.0
+
+# Database
+sqlalchemy[asyncio]==2.0.25
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+alembic==1.13.1
+greenlet==3.0.3
+
+# Auth & Security
+python-jose[cryptography]==3.3.0
+bcrypt==4.1.2
+
+# HTTP
+httpx==0.26.0
+
+# Utilities
+python-dotenv==1.0.1
+python-multipart==0.0.6

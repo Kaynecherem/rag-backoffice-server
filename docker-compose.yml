@@ -1,0 +1,61 @@
+# ═══════════════════════════════════════════════════════════════════
+# Insurance RAG — Superadmin Back Office
+# ═══════════════════════════════════════════════════════════════════
+#
+# This connects to the MAIN APP's PostgreSQL instance via a shared
+# Docker network. No separate database — both apps read/write the
+# same tables.
+#
+# SETUP (one-time):
+#   1. Create the shared network:
+#      docker network create insurance-rag-network
+#
+#   2. Add the network to the MAIN APP's docker-compose.yml
+#      (see comments at bottom of this file)
+#
+#   3. Restart the main app:
+#      cd /path/to/main-app && docker compose up -d
+#
+#   4. Start the superadmin:
+#      cd /path/to/superadmin && docker compose up -d --build
+#
+# ═══════════════════════════════════════════════════════════════════
+
+services:
+  api:
+    build: .
+    container_name: superadmin-api
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env.example
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+    networks:
+      - insurance-rag-network
+
+# ── Shared network (connects to main app's Postgres) ─────────────
+networks:
+  insurance-rag-network:
+    external: true
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MAIN APP docker-compose.yml — add these lines:
+# ═══════════════════════════════════════════════════════════════════
+#
+# At the bottom of the main app's docker-compose.yml, add:
+#
+#   networks:
+#     insurance-rag-network:
+#       external: true
+#
+# Then on each service (db, api, worker, redis), add:
+#
+#   networks:
+#     - insurance-rag-network
+#
+# See the companion file "main-app-docker-compose-updated.yml"
+# for the exact changes.
+# ═══════════════════════════════════════════════════════════════════
