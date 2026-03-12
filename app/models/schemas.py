@@ -117,7 +117,7 @@ class StaffCreate(BaseModel):
 
 
 class StaffUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    name: Optional[str] = Field(None, max_length=255)
     role: Optional[str] = Field(None, pattern=r"^(admin|staff)$")
     email: Optional[EmailStr] = None
 

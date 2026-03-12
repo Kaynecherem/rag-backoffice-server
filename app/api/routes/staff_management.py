@@ -209,7 +209,7 @@ async def update_staff(
         raise HTTPException(status_code=404, detail="Staff user not found")
 
     changes = {}
-    if body.name is not None:
+    if body.name is not None and body.name.strip():
         changes["name"] = {"from": staff.name, "to": body.name}
         staff.name = body.name.strip()
     if body.role is not None:
