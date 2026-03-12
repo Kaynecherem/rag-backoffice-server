@@ -119,7 +119,7 @@ class StaffCreate(BaseModel):
 class StaffUpdate(BaseModel):
     name: Optional[str] = Field(None, max_length=255)
     role: Optional[str] = Field(None, pattern=r"^(admin|staff)$")
-    email: Optional[EmailStr] = None
+    email: Optional[str] = Field(None, max_length=255)
 
 
 class StaffStatusUpdate(BaseModel):
