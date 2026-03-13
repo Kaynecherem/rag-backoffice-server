@@ -49,10 +49,10 @@ def get_db_url() -> str:
         # Fall back to async URL and convert
         async_url = os.environ.get("DATABASE_URL", "")
         if async_url:
-            url = async_url.replace("postgresql+asyncpg://", "postgresql://")
+            url = async_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
 
     if not url:
-        url = "postgresql://postgres:postgres@localhost:5433/insurance_rag"
+        url = "postgresql+psycopg2://postgres:postgres@localhost:5433/insurance_rag"
         print(f"  No DATABASE_URL found, using default: {url}")
 
     return url
