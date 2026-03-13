@@ -170,12 +170,13 @@ async def create_staff(
     await db.refresh(staff)
 
     result = _format_staff(staff)
+    response = result.model_dump() if hasattr(result, "model_dump") else dict(result)
 
-    # Include password reset URL in response if Auth0 auto-created the user
     if auth0_result.get("password_reset_url"):
-        result.password_reset_url = auth0_result["password_reset_url"]
+        response["password_reset_url"] = auth0_result["password_reset_url"]
+    response["auth0_auto_created"] = auth0_result.get("auto_created", False)
 
-    return result
+    return response
 
 
 @router.get("/{tenant_id}/staff/{staff_id}", response_model=StaffListItem)
