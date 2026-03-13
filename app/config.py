@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     # Auth0 Management API (auto-create users)
     auth0_mgmt_client_id: str = ""
     auth0_mgmt_client_secret: str = ""
+    auth0_domain: str = "insurance-rag.us.auth0.com"
 
     # Vercel domain provisioning
     vercel_token: str = ""
