@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.vercel_domains import VercelDomainService
+
 from app.db.session import get_db
 from app.models.database import (
     Tenant, StaffUser, Policyholder, Document, QueryLog,
@@ -250,6 +252,15 @@ async def create_tenant(
     await db.commit()
     await db.refresh(tenant)
 
+    # Auto-provision subdomain on Vercel
+    vercel = VercelDomainService()
+    domain_result = await vercel.add_domain(tenant.slug)
+
+    # Include domain status in response
+    # (don't fail tenant creation if Vercel fails — it can be retried)
+    if domain_result.get("error"):
+        logger.warning(f"Vercel domain provisioning failed for {tenant.slug}: {domain_result['error']}")
+
     return TenantDetail(
         id=str(tenant.id),
         name=tenant.name,
@@ -258,6 +269,7 @@ async def create_tenant(
         widget_config=tenant.widget_config,
         created_at=tenant.created_at,
     )
+
 
 
 @router.get("/tenants/{tenant_id}", response_model=TenantDetail)

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     auth0_mgmt_client_id: str = ""
     auth0_mgmt_client_secret: str = ""
 
+    # Vercel domain provisioning
+    vercel_token: str = ""
+    vercel_project_id: str = ""
+    vercel_team_id: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         if self.cors_origins == "*":
