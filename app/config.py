@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     port: int = 8001
     debug: bool = False
 
+    # Auth0 Management API (auto-create users)
+    auth0_mgmt_client_id: str = ""
+    auth0_mgmt_client_secret: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         if self.cors_origins == "*":

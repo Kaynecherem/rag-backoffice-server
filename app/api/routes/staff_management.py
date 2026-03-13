@@ -25,6 +25,7 @@ from app.models.schemas import (
     StaffListItem, StaffListResponse,
 )
 from app.api.dependencies import require_superadmin
+from app.services.auth0_mgmt import Auth0ManagementService
 
 logger = logging.getLogger("api.superadmin.staff")
 router = APIRouter()
@@ -141,16 +142,19 @@ async def create_staff(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail=f"Staff with email '{body.email}' already exists in this tenant")
 
-    # Generate a placeholder auth0_user_id if not provided
-    # This will be replaced when the user first logs in via Auth0
-    auth0_id = body.auth0_user_id or f"pending|{uuid.uuid4().hex[:24]}"
+    # Auto-create user in Auth0
+    auth0_svc = Auth0ManagementService()
+    auth0_result = await auth0_svc.create_user(
+        email=body.email.lower().strip(),
+        name=body.name.strip(),
+    )
 
     staff = StaffUser(
         tenant_id=tenant_id,
         email=body.email.lower().strip(),
         name=body.name.strip(),
         role=UserRole(body.role),
-        auth0_user_id=auth0_id,
+        auth0_user_id=auth0_result["auth0_user_id"],
         is_active=True,
     )
     db.add(staff)
@@ -159,12 +163,19 @@ async def create_staff(
         "tenant_id": tenant_id,
         "email": staff.email,
         "role": body.role,
+        "auth0_auto_created": auth0_result["auto_created"],
     }, request=request)
 
     await db.commit()
     await db.refresh(staff)
 
-    return _format_staff(staff)
+    result = _format_staff(staff)
+
+    # Include password reset URL in response if Auth0 auto-created the user
+    if auth0_result.get("password_reset_url"):
+        result.password_reset_url = auth0_result["password_reset_url"]
+
+    return result
 
 
 @router.get("/{tenant_id}/staff/{staff_id}", response_model=StaffListItem)
