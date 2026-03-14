@@ -122,7 +122,7 @@ async def list_staff(
     )
 
 
-@router.post("/{tenant_id}/staff", response_model=StaffListItem, status_code=201)
+@router.post("/{tenant_id}/staff", status_code=201)
 async def create_staff(
     tenant_id: str,
     body: StaffCreate,
