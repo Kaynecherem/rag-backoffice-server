@@ -351,3 +351,62 @@ async def delete_staff(
         "auth0_deleted": auth0_deleted,
         "message": f"Staff user '{staff.deleted_name}' has been deleted.",
     }
+@router.post("/{tenant_id}/staff/{staff_id}/reset-password")
+async def reset_staff_password(
+    tenant_id: str,
+    staff_id: str,
+    request: Request,
+    admin: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate a new password reset link for an existing staff user."""
+    result = await db.execute(
+        select(StaffUser).where(
+            StaffUser.id == staff_id,
+            StaffUser.tenant_id == tenant_id,
+        )
+    )
+    staff = result.scalar_one_or_none()
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff user not found")
+
+    if not staff.is_active:
+        raise HTTPException(status_code=400, detail="Cannot reset password for inactive user")
+
+    if staff.auth0_user_id.startswith("pending|"):
+        raise HTTPException(status_code=400, detail="User has not been provisioned in Auth0 yet")
+
+    auth0_svc = Auth0ManagementService()
+    token = await auth0_svc._get_mgmt_token()
+    if not token:
+        raise HTTPException(status_code=500, detail="Auth0 Management API unavailable")
+
+    import httpx
+    async with httpx.AsyncClient() as client:
+        ticket_resp = await client.post(
+            f"https://{auth0_svc.domain}/api/v2/tickets/password-change",
+            headers={"Authorization": f"Bearer {token}"},
+            json={
+                "user_id": staff.auth0_user_id,
+                "result_url": "https://agencylensai.com/auth",
+                "ttl_sec": 604800,
+            },
+            timeout=10,
+        )
+
+    if ticket_resp.status_code != 201:
+        raise HTTPException(status_code=500, detail="Failed to generate password reset link")
+
+    password_reset_url = ticket_resp.json().get("ticket")
+
+    await _log_action(db, admin, "staff.password_reset", "staff_user", staff_id, {
+        "tenant_id": tenant_id,
+        "email": staff.email,
+    }, request)
+    await db.commit()
+
+    return {
+        "password_reset_url": password_reset_url,
+        "email": staff.email,
+        "message": f"Password reset link generated for {staff.email}. Valid for 7 days.",
+    }
