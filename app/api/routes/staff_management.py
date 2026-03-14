@@ -12,6 +12,7 @@ import logging
 import uuid
 from typing import Optional
 
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -248,6 +249,14 @@ async def update_staff(
         }, request)
         await db.commit()
         await db.refresh(staff)
+    # Sync changes to Auth0
+    if changes and not staff.auth0_user_id.startswith("pending|"):
+        auth0_svc = Auth0ManagementService()
+        await auth0_svc.update_user(
+            auth0_user_id=staff.auth0_user_id,
+            name=staff.name if "name" in changes else None,
+            email=staff.email if "email" in changes else None,
+        )
 
     return _format_staff(staff)
 
@@ -289,4 +298,56 @@ async def update_staff_status(
         "email": staff.email,
         "is_active": staff.is_active,
         "previous_status": old_status,
+    }
+
+@router.delete("/{tenant_id}/staff/{staff_id}")
+async def delete_staff(
+    tenant_id: str,
+    staff_id: str,
+    request: Request,
+    admin: dict = Depends(require_superadmin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Soft-delete a staff user. Preserves their name for history display,
+    deactivates the account, and deletes the Auth0 user.
+    """
+    result = await db.execute(
+        select(StaffUser).where(
+            StaffUser.id == staff_id,
+            StaffUser.tenant_id == tenant_id,
+        )
+    )
+    staff = result.scalar_one_or_none()
+    if not staff:
+        raise HTTPException(status_code=404, detail="Staff user not found")
+
+    if staff.deleted_at:
+        raise HTTPException(status_code=400, detail="Staff user is already deleted")
+
+    # Preserve name for history, mark as deleted
+    staff.deleted_name = staff.name
+    staff.deleted_at = datetime.utcnow()
+    staff.is_active = False
+    staff.name = f"{staff.name} (Deleted)"
+
+    # Delete from Auth0
+    auth0_svc = Auth0ManagementService()
+    auth0_deleted = await auth0_svc.delete_user(staff.auth0_user_id)
+
+    await _log_action(db, admin, "staff.delete", "staff_user", staff_id, {
+        "tenant_id": tenant_id,
+        "email": staff.email,
+        "deleted_name": staff.deleted_name,
+        "auth0_deleted": auth0_deleted,
+    }, request)
+
+    await db.commit()
+
+    return {
+        "id": str(staff.id),
+        "email": staff.email,
+        "deleted": True,
+        "auth0_deleted": auth0_deleted,
+        "message": f"Staff user '{staff.deleted_name}' has been deleted.",
     }
