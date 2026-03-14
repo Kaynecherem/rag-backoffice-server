@@ -9,14 +9,14 @@ Register in main.py:
 """
 
 import logging
-import uuid
+from datetime import datetime
 from typing import Optional
 
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.dependencies import require_superadmin
 from app.db.session import get_db
 from app.models.database import (
     StaffUser, Tenant, UserRole, AuditLog,
@@ -25,7 +25,6 @@ from app.models.schemas import (
     StaffCreate, StaffUpdate, StaffStatusUpdate,
     StaffListItem, StaffListResponse,
 )
-from app.api.dependencies import require_superadmin
 from app.services.auth0_mgmt import Auth0ManagementService
 
 logger = logging.getLogger("api.superadmin.staff")
@@ -85,13 +84,20 @@ async def list_staff(
     search: Optional[str] = None,
     role: Optional[str] = Query(None, pattern=r"^(admin|staff)$"),
     is_active: Optional[bool] = None,
-    admin: dict = Depends(require_superadmin),
     db: AsyncSession = Depends(get_db),
+    show_deleted: bool = Query(False, description="Show only deleted users"),
+    sort_by: str = Query("name", pattern=r"^(name|email|role|created_at|last_login_at)$"),
+    sort_order: str = Query("asc", pattern=r"^(asc|desc)$"),
 ):
     """List staff users for a specific tenant."""
     await _get_tenant_or_404(db, tenant_id)
 
     filters = [StaffUser.tenant_id == tenant_id]
+    if show_deleted:
+        filters.append(StaffUser.deleted_at.isnot(None))
+    else:
+        filters.append(StaffUser.deleted_at.is_(None))
+
     if search:
         filters.append(
             (StaffUser.email.ilike(f"%{search}%")) | (StaffUser.name.ilike(f"%{search}%"))
@@ -104,13 +110,20 @@ async def list_staff(
     count_q = select(func.count(StaffUser.id)).where(*filters)
     total = (await db.execute(count_q)).scalar() or 0
 
+    sort_column = getattr(StaffUser, sort_by, StaffUser.name)
+    if sort_order == "asc":
+        order_clause = sort_column.asc().nullslast()
+    else:
+        order_clause = sort_column.desc().nullslast()
+
     query = (
         select(StaffUser)
         .where(*filters)
-        .order_by(desc(StaffUser.created_at))
+        .order_by(order_clause)
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
+
     result = await db.execute(query)
     staff_list = result.scalars().all()
 
