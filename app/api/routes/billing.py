@@ -190,6 +190,13 @@ async def assign_plan(
     old_plan = getattr(tenant, "plan", None) or "trial"
     tenant.plan = body.plan
 
+    # Sync status with plan
+    from app.models.database import TenantStatus
+    if body.plan == "trial":
+        tenant.status = TenantStatus.TRIAL
+    elif tenant.status == TenantStatus.TRIAL:
+        tenant.status = TenantStatus.ACTIVE
+
     await _log_action(db, admin, "tenant.plan_change", "tenant", tenant_id, {
         "tenant_name": tenant.name,
         "old_plan": old_plan,
