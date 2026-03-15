@@ -1,8 +1,7 @@
 """
-Insurance RAG — Superadmin Back Office API
+Superadmin Back Office — FastAPI Application Entry Point.
 
-Separate FastAPI application that connects to the SAME database
-as the main client app. Runs on port 8001 by default.
+Connects to the SAME database as the main Insurance RAG app.
 """
 
 import logging
@@ -12,46 +11,45 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.api.routes.superadmin import router as superadmin_router
+from app.db.session import engine
 
+# Route imports
+from app.api.routes.superadmin import router as superadmin_router
 from app.api.routes.staff_management import router as staff_mgmt_router
 from app.api.routes.policyholder_management import router as ph_mgmt_router
-
 from app.api.routes.document_management import router as doc_mgmt_router
 from app.api.routes.analytics import router as analytics_router
-
 from app.api.routes.system_health import router as health_router
 from app.api.routes.widget_config import router as widget_config_router
 from app.api.routes.impersonation import router as impersonation_router
-
 from app.api.routes.billing import router as billing_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.onboarding import router as onboarding_router
 from app.api.routes.rag_config import router as rag_config_router
 from app.api.routes.compliance import router as compliance_router
 from app.api.routes.support_tools import router as support_router
+from app.api.routes.superadmin_management import router as superadmin_mgmt_router
 
 settings = get_settings()
 
-# Logging
 logging.basicConfig(
     level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s | %(name)s | %(levelname)s | %(message)s",
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
 )
 logger = logging.getLogger("superadmin")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Superadmin Back Office starting up")
-    logger.info(f"Debug mode: {settings.debug}")
+    logger.info("Superadmin back office starting up")
     yield
-    logger.info("Superadmin Back Office shutting down")
+    logger.info("Superadmin back office shutting down")
+    await engine.dispose()
 
 
 app = FastAPI(
-    title="Insurance RAG — Superadmin",
-    description="Platform-level admin API for managing tenants, staff, and system configuration.",
+    title="Patch — Superadmin API",
+    description="Platform administration for Patch Policy Intelligence",
     version="1.0.0",
     lifespan=lifespan,
     docs_url="/docs" if settings.debug else None,
@@ -115,40 +113,48 @@ app.include_router(
 app.include_router(
     billing_router,
     prefix="/api/v1/superadmin",
-    tags=["superadmin-billing"]
+    tags=["superadmin-billing"],
 )
 
 app.include_router(
     notifications_router,
     prefix="/api/v1/superadmin",
-    tags=["superadmin-notifications"]
+    tags=["superadmin-notifications"],
 )
 
 app.include_router(
     onboarding_router,
     prefix="/api/v1/superadmin/tenants",
-    tags=["superadmin-onboarding"]
+    tags=["superadmin-onboarding"],
 )
 
 app.include_router(
     rag_config_router,
     prefix="/api/v1/superadmin",
-    tags=["superadmin-rag"]
+    tags=["superadmin-rag"],
 )
 
 app.include_router(
     compliance_router,
     prefix="/api/v1/superadmin/tenants",
-    tags=["superadmin-compliance"]
+    tags=["superadmin-compliance"],
 )
 
 app.include_router(
     support_router,
     prefix="/api/v1/superadmin",
-    tags=["superadmin-support"]
+    tags=["superadmin-support"],
 )
+
+# NEW: Superadmin account management
+app.include_router(
+    superadmin_mgmt_router,
+    prefix="/api/v1/superadmin/admins",
+    tags=["superadmin-management"],
+)
+
 
 # Health check
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "superadmin-backoffice"}
+    return {"status": "ok", "service": "patch-superadmin"}

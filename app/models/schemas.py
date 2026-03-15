@@ -96,7 +96,8 @@ class AuditLogItem(BaseModel):
     resource_type: str
     resource_id: Optional[str] = None
     details: Optional[dict] = None
-    performed_at: datetime
+    ip_address: Optional[str] = None
+    created_at: datetime
 
 
 class AuditLogResponse(BaseModel):
@@ -105,9 +106,8 @@ class AuditLogResponse(BaseModel):
     page: int
     page_size: int
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Staff User Management
-# ═══════════════════════════════════════════════════════════════════════════
+
+# ── Staff Management ──────────────────────────────────────────────────────
 
 class StaffCreate(BaseModel):
     email: EmailStr
@@ -117,9 +117,9 @@ class StaffCreate(BaseModel):
 
 
 class StaffUpdate(BaseModel):
-    name: Optional[str] = Field(None, max_length=255)
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    email: Optional[str] = Field(None, min_length=3, max_length=255)
     role: Optional[str] = Field(None, pattern=r"^(admin|staff)$")
-    email: Optional[str] = Field(None, max_length=255)
 
 
 class StaffStatusUpdate(BaseModel):
@@ -145,9 +145,7 @@ class StaffListResponse(BaseModel):
     page_size: int
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Policyholder Management
-# ═══════════════════════════════════════════════════════════════════════════
+# ── Policyholder Management ──────────────────────────────────────────────
 
 class PolicyholderCreate(BaseModel):
     policy_number: str = Field(min_length=1, max_length=100)
@@ -163,16 +161,6 @@ class PolicyholderUpdate(BaseModel):
 
 class PolicyholderStatusUpdate(BaseModel):
     is_active: bool
-
-
-class PolicyholderBulkImportItem(BaseModel):
-    policy_number: str = Field(min_length=1, max_length=100)
-    last_name: Optional[str] = None
-    company_name: Optional[str] = None
-
-
-class PolicyholderBulkImport(BaseModel):
-    policyholders: list[PolicyholderBulkImportItem] = Field(min_length=1, max_length=500)
 
 
 class PolicyholderListItem(BaseModel):
@@ -193,14 +181,33 @@ class PolicyholderListResponse(BaseModel):
     page_size: int
 
 
+class PolicyholderBulkImportItem(BaseModel):
+    policy_number: str = Field(min_length=1, max_length=100)
+    last_name: Optional[str] = None
+    company_name: Optional[str] = None
+
+
+class PolicyholderBulkImport(BaseModel):
+    policyholders: list[PolicyholderBulkImportItem] = Field(min_length=1, max_length=500)
+
+
 class BulkImportResult(BaseModel):
     created: int
     skipped: int
     errors: list[str]
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Document Management
-# ═══════════════════════════════════════════════════════════════════════════
+
+class PolicyholderBulkImport(BaseModel):
+    policyholders: list[PolicyholderCreate]
+
+
+class PolicyholderBulkImportResponse(BaseModel):
+    created: int
+    skipped: int
+    errors: list[str] = []
+
+
+# ── Document Management ──────────────────────────────────────────────────
 
 class DocumentListItem(BaseModel):
     id: str
@@ -226,6 +233,7 @@ class DocumentListResponse(BaseModel):
 class DocumentDetail(BaseModel):
     id: str
     tenant_id: str
+    tenant_name: str = ""
     document_type: str
     status: str
     policy_number: Optional[str] = None
@@ -240,9 +248,15 @@ class DocumentDetail(BaseModel):
     chunks: list[dict] = []
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Analytics
-# ═══════════════════════════════════════════════════════════════════════════
+class DocumentStats(BaseModel):
+    tenant_id: str
+    total_documents: int
+    by_type: dict
+    by_status: dict
+    recent_uploads: list[dict] = []
+
+
+# ── Analytics ────────────────────────────────────────────────────────────
 
 class PlatformAnalytics(BaseModel):
     total_queries: int
@@ -270,9 +284,8 @@ class TenantAnalytics(BaseModel):
     top_policy_numbers: list[dict] = []
     document_stats: dict = {}
 
-# ═══════════════════════════════════════════════════════════════════════════
-# System Health
-# ═══════════════════════════════════════════════════════════════════════════
+
+# ── System Health ────────────────────────────────────────────────────────
 
 class ServiceStatus(BaseModel):
     name: str
@@ -288,9 +301,7 @@ class SystemHealth(BaseModel):
     checked_at: datetime
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-# Widget Configuration
-# ═══════════════════════════════════════════════════════════════════════════
+# ── Widget Configuration ─────────────────────────────────────────────────
 
 class WidgetConfigUpdate(BaseModel):
     primary_color: Optional[str] = Field(None, max_length=7, pattern=r"^#[0-9a-fA-F]{6}$")
@@ -328,10 +339,13 @@ class ImpersonationToken(BaseModel):
     impersonating: str      # "staff" or "policyholder"
     tenant_id: str
     tenant_name: str
+    tenant_slug: str = ""   # Used to build the correct subdomain URL
     user_identifier: str    # email or policy_number
     role: str
     expires_in_hours: int
+    impersonator_name: str = ""  # Superadmin name for "Viewing as" banner
     notice: str             # reminder that actions are logged
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Billing & Subscription (usage tracking, no payments)
@@ -340,10 +354,20 @@ class ImpersonationToken(BaseModel):
 class PlanConfig(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     query_limit_monthly: int = Field(ge=0)           # 0 = unlimited
-    document_limit: int = Field(ge=0)                 # 0 = unlimited
+    document_limit: int = Field(ge=0)                 # 0 = unlimited (comms only; policy docs are always unlimited)
     staff_limit: int = Field(ge=0)
     policyholder_limit: int = Field(ge=0)
     features: list[str] = []                          # e.g. ["widget", "batch_upload", "api_access"]
+
+
+class PlanConfigUpdate(BaseModel):
+    """Update specific fields of a plan configuration."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    query_limit_monthly: Optional[int] = Field(None, ge=0)
+    document_limit: Optional[int] = Field(None, ge=0)
+    staff_limit: Optional[int] = Field(None, ge=0)
+    policyholder_limit: Optional[int] = Field(None, ge=0)
+    features: Optional[list[str]] = None
 
 
 class TenantPlanAssign(BaseModel):
@@ -357,8 +381,10 @@ class TenantUsage(BaseModel):
     period: str                                        # "2026-03"
     queries_used: int
     queries_limit: int
-    documents_count: int
+    documents_count: int                               # Communication docs only
     documents_limit: int
+    policy_documents_count: int = 0                    # Always unlimited
+    policy_documents_unlimited: bool = True
     staff_count: int
     staff_limit: int
     policyholders_count: int
@@ -368,8 +394,13 @@ class TenantUsage(BaseModel):
 
 
 class PlatformUsageSummary(BaseModel):
-    total_queries_this_month: int
-    total_documents: int
+    period: str = ""
+    total_tenants: int = 0
+    active_tenants: int = 0
+    total_queries_this_month: int = 0
+    total_documents: int = 0
+    total_staff: int = 0
+    total_policyholders: int = 0
     tenants_at_risk: list[dict] = []
     usage_by_tenant: list[dict] = []
 
@@ -496,3 +527,41 @@ class VerificationDebugResult(BaseModel):
     has_documents: bool
     document_count: int
     is_indexed: bool
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Superadmin Account Management (NEW)
+# ═══════════════════════════════════════════════════════════════════════════
+
+class SuperAdminCreate(BaseModel):
+    email: EmailStr
+    name: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=8)
+
+
+class SuperAdminUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=255)
+    email: Optional[str] = Field(None, min_length=3, max_length=255)
+
+
+class SuperAdminPasswordChange(BaseModel):
+    current_password: str = Field(min_length=8)
+    new_password: str = Field(min_length=8)
+
+
+class SuperAdminStatusUpdate(BaseModel):
+    is_active: bool
+
+
+class SuperAdminListItem(BaseModel):
+    id: str
+    email: str
+    name: str
+    is_active: bool
+    last_login_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class SuperAdminListResponse(BaseModel):
+    admins: list[SuperAdminListItem]
+    total: int
