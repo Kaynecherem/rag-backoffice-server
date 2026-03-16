@@ -61,7 +61,10 @@ async def _log_action(
 
 async def _get_tenant_counts(db: AsyncSession, tenant_id) -> dict:
     """Get aggregate counts for a tenant."""
-    staff_q = select(func.count(StaffUser.id)).where(StaffUser.tenant_id == tenant_id)
+    staff_q = select(func.count(StaffUser.id)).where(
+        StaffUser.tenant_id == tenant_id,
+        StaffUser.deleted_at.is_(None),
+    )
     holder_q = select(func.count(Policyholder.id)).where(Policyholder.tenant_id == tenant_id)
     doc_q = select(func.count(Document.id)).where(Document.tenant_id == tenant_id)
     query_q = select(func.count(QueryLog.id)).where(QueryLog.tenant_id == tenant_id)
@@ -480,7 +483,9 @@ async def platform_stats(
     active_tenants = (await db.execute(
         select(func.count(Tenant.id)).where(Tenant.status == TenantStatus.ACTIVE)
     )).scalar() or 0
-    total_staff = (await db.execute(select(func.count(StaffUser.id)))).scalar() or 0
+    total_staff = (await db.execute(
+        select(func.count(StaffUser.id)).where(StaffUser.deleted_at.is_(None))
+    )).scalar() or 0
     total_policyholders = (await db.execute(select(func.count(Policyholder.id)))).scalar() or 0
     total_documents = (await db.execute(select(func.count(Document.id)))).scalar() or 0
     total_queries = (await db.execute(select(func.count(QueryLog.id)))).scalar() or 0

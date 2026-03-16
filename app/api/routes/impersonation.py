@@ -88,6 +88,7 @@ async def impersonate_staff(
                 StaffUser.id == body.staff_id,
                 StaffUser.tenant_id == tenant_id,
                 StaffUser.is_active == True,
+                StaffUser.deleted_at.is_(None),
             )
         )
     else:
@@ -97,6 +98,7 @@ async def impersonate_staff(
             .where(
                 StaffUser.tenant_id == tenant_id,
                 StaffUser.is_active == True,
+                StaffUser.deleted_at.is_(None),
             )
             .order_by(
                 # Prefer admins

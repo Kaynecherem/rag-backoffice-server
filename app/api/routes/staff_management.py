@@ -205,6 +205,7 @@ async def get_staff(
         select(StaffUser).where(
             StaffUser.id == staff_id,
             StaffUser.tenant_id == tenant_id,
+            StaffUser.deleted_at.is_(None),
         )
     )
     staff = result.scalar_one_or_none()
@@ -228,6 +229,7 @@ async def update_staff(
         select(StaffUser).where(
             StaffUser.id == staff_id,
             StaffUser.tenant_id == tenant_id,
+            StaffUser.deleted_at.is_(None),
         )
     )
     staff = result.scalar_one_or_none()
@@ -288,6 +290,7 @@ async def update_staff_status(
         select(StaffUser).where(
             StaffUser.id == staff_id,
             StaffUser.tenant_id == tenant_id,
+            StaffUser.deleted_at.is_(None),
         )
     )
     staff = result.scalar_one_or_none()
